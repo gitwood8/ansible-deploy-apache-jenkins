@@ -1,0 +1,5 @@
+[apache_ubuntu]
+linux-1 ansible_host=
+  
+[jenkins_rhel]
+linux-2 ansible_host=
