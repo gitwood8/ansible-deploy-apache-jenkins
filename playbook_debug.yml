@@ -1,0 +1,117 @@
+---
+
+- name: Install Apache or Jenkins
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars_prompt:
+    - name: software_choice
+      prompt: "What software do you want to install? (apache/jenkins)"
+      private: false
+
+  tasks:
+  - name: Validation user input
+    fail:
+      msg: "Invalid software name. Please enter either 'apache' or 'jenkins'"
+    when: software_choice != "apache" and software_choice != "jenkins"
+
+  - name: Install Apache
+#-----------------Install Apache Debian-----------------
+    block:
+    - name: Debian
+      block:
+        - name: Install Apache 
+          apt: name=apache2 state=latest
+        - name: Start Apache
+          service: name=apache2 state=started enabled=yes
+        - name: CHECK
+          debug: msg="Apache installed and started"
+      when: ansible_os_family == "Debian"
+#-----------------Install Apache RedHat-----------------
+    - name: RedHat
+      block:
+        - name: Install Apache
+          yum: name=httpd state=latest
+        - name: Start Apache  
+          service: name=httpd state=started enabled=yes
+        - name: CHECK
+          debug: msg="Apache installed and started"
+      when: ansible_os_family == "RedHat"
+
+    when: software_choice == "apache"
+
+#-----------------Install Jenkins Debian-----------------
+  - name: Install Jenkins
+    block:
+    - name: Debian
+      block:     
+        - name: Install JDK 11
+          apt: name=openjdk-11-jdk  state=present
+
+        - name: Apt update
+          apt: name='*' state=latest
+
+        - name: Import key file from jenkins-ci
+          rpm_key:
+            state: present
+            key: wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key
+        - name: 
+          shell: apt-key add -
+        - name: 
+          shell: "sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'"
+
+        - name: Apt update
+          apt: name='*' state=latest
+
+        - name: Install jenkins
+          apt: name=jenkins state=latest 
+        - name: Start jenkins
+          systemd: name=jenkins state=started enabled=yes 
+
+        - name: Sleep for 10 seconds
+          wait_for: timeout=10
+
+        - name: Get init password Jenkins
+          shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+          changed_when: false
+          register: result
+        - name: Print init password Jenkins
+          debug: var=result.stdout
+      when: ansible_os_family == "Debian"
+
+#-----------------Install Jenkins RedHat-----------------
+    - name: RedHat
+      block: 
+        - name: Add the Jenkins repository
+          get_url:
+            url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+            dest: /etc/yum.repos.d/jenkins.repo
+        - name: import a key file from jenkins-ci
+          rpm_key:
+            state: present
+            key: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+
+        - name: Yum update
+          yum: name='*' state=latest
+
+        - name: install JDK 11
+          shell: amazon-linux-extras install java-openjdk11 -y
+
+        - name: install jenkins
+          yum: name=jenkins state=latest
+        - name: Start jenkins
+          systemd: name=jenkins state=started enabled=yes 
+
+        - name: Sleep for 10 seconds
+          wait_for: timeout=10
+
+        - name: Get init password for Jenkins
+          shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+          changed_when: false
+          register: result
+        - name: Print init password for Jenkins
+          debug: var=result.stdout
+      when: ansible_os_family == "RedHat"
+
+    when: software_choice == "jenkins"
